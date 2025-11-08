@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>School Management</title>
+  <style>
+    /* Basic reset */
+    * { margin:0; padding:0; box-sizing:border-box; font-family: Arial, sans-serif; }
+    body { background:#121212; color:#fff; padding:20px; }
+    h1,h2 { margin-bottom:10px; }
+    .container { max-width:1200px; margin:0 auto; }
+    .section { margin-bottom:40px; }
+    table { width:100%; border-collapse:collapse; margin-top:10px; }
+    th,td { padding:8px; border:1px solid #444; text-align:left; }
+    th { background:#222; }
+    tr:nth-child(even) { background:#1a1a1a; }
+    button { padding:6px 12px; margin:2px; cursor:pointer; border:none; border-radius:4px; }
+    .add-btn { background:#28a745; color:white; }
+    .edit-btn { background:#ffc107; color:black; }
+    .delete-btn { background:#dc3545; color:white; }
+    .modal { position:fixed; top:0; left:0; width:100%; height:100%; display:none; justify-content:center; align-items:center; background:rgba(0,0,0,0.7); }
+    .modal-content { background:#222; padding:20px; border-radius:8px; width:90%; max-width:400px; }
+    input, select { width:100%; padding:8px; margin:6px 0; border-radius:4px; border:none; }
+    @media(max-width:768px) {
+      th,td { font-size:14px; }
+      button { font-size:12px; padding:4px 8px; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>School Management</h1>
+
+  <!-- Courses Section -->
+  <div class="section" id="courses-section">
+    <h2>Courses</h2>
+    <button class="add-btn" onclick="openCourseModal()">Add Course</button>
+    <table id="courses-table">
+      <thead>
+        <tr><th>Title</th><th>Code</th><th>Actions</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <!-- Students Section -->
+  <div class="section" id="students-section">
+    <h2>Students</h2>
+    <button class="add-btn" onclick="openStudentModal()">Add Student</button>
+    <table id="students-table">
+      <thead>
+        <tr><th>Name</th><th>Email</th><th>Registered Courses</th><th>Actions</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal Template -->
+<div class="modal" id="modal">
+  <div class="modal-content">
+    <h3 id="modal-title"></h3>
+    <form id="modal-form">
+      <input type="text" id="name" placeholder="Name / Title" required>
+      <input type="text" id="code" placeholder="Code (for courses)" >
+      <input type="email" id="email" placeholder="Email (for students)">
+      <select id="course-select"></select>
+      <button type="submit" class="add-btn">Save</button>
+      <button type="button" onclick="closeModal()">Cancel</button>
+    </form>
+  </div>
+</div>
+
+<script>
+  const API = "http://localhost:3000/api"; // لو تنشر على Render, ضع الرابط الكامل هنا
+
+  let editingCourseId = null;
+  let editingStudentId = null;
+
+  async function fetchCourses() {
+    const res = await fetch(`${API}/courses`);
+    const courses = await res.json();
+    const tbody = document.querySelector("#courses-table tbody");
+    tbody.innerHTML = "";
+    courses.forEach(c => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${c.title}</td>
+        <td>${c.code}</td>
+        <td>
+          <button class="edit-btn" onclick="editCourse('${c._id}','${c.title}','${c.code}')">Edit</button>
+          <button class="delete-btn" onclick="deleteCourse('${c._id}')">Delete</button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+    return courses;
+  }
+
+  async function fetchStudents() {
+    const res = await fetch(`${API}/students`);
+    const students = await res.json();
+    const tbody = document.querySelector("#students-table tbody");
+    tbody.innerHTML = "";
+    students.forEach(s => {
+      const coursesList = s.registeredCourses.map(rc => rc.title).join(", ");
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${s.name}</td>
+        <td>${s.email || ""}</td>
+        <td>${coursesList}</td>
+        <td>
+          <button class="edit-btn" onclick="editStudent('${s._id}','${s.name}','${s.email||''}')">Edit</button>
+          <button class="delete-btn" onclick="deleteStudent('${s._id}')">Delete</button>
+          <button class="add-btn" onclick="registerCoursePrompt('${s._id}')">Register Course</button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function openCourseModal() {
+    editingCourseId = null;
+    document.getElementById("modal-title").textContent = "Add Course";
+    document.getElementById("name").value = "";
+    document.getElementById("code").value = "";
+    document.getElementById("email").style.display="none";
+    document.getElementById("course-select").style.display="none";
+    document.getElementById("modal").style.display="flex";
+  }
+
+  function editCourse(id,title,code) {
+    editingCourseId = id;
+    document.getElementById("modal-title").textContent = "Edit Course";
+    document.getElementById("name").value = title;
+    document.getElementById("code").value = code;
+    document.getElementById("email").style.display="none";
+    document.getElementById("course-select").style.display="none";
+    document.getElementById("modal").style.display="flex";
+  }
+
+  function openStudentModal() {
+    editingStudentId = null;
+    document.getElementById("modal-title").textContent = "Add Student";
+    document.getElementById("name").value = "";
+    document.getElementById("email").value = "";
+    document.getElementById("email").style.display="block";
+    document.getElementById("code").style.display="none";
+    document.getElementById("course-select").style.display="none";
+    document.getElementById("modal").style.display="flex";
+  }
+
+  function editStudent(id,name,email){
+    editingStudentId = id;
+    document.getElementById("modal-title").textContent = "Edit Student";
+    document.getElementById("name").value = name;
+    document.getElementById("email").value = email;
+    document.getElementById("email").style.display="block";
+    document.getElementById("code").style.display="none";
+    document.getElementById("course-select").style.display="none";
+    document.getElementById("modal").style.display="flex";
+  }
+
+  function closeModal() {
+    document.getElementById("modal").style.display="none";
+  }
+
+  document.getElementById("modal-form").addEventListener("submit", async (e)=>{
+    e.preventDefault();
+    const name = document.getElementById("name").value;
+    const code = document.getElementById("code").value;
+    const email = document.getElementById("email").value;
+
+    try{
+      if(editingCourseId){
+        await fetch(`${API}/courses/${editingCourseId}`,{
+          method:"PUT",
+          headers:{ "Content-Type":"application/json" },
+          body: JSON.stringify({ title:name, code })
+        });
+      } else if(editingStudentId){
+        await fetch(`${API}/students/${editingStudentId}`,{
+          method:"PUT",
+          headers:{ "Content-Type":"application/json" },
+          body: JSON.stringify({ name,email })
+        });
+      } else if(document.getElementById("modal-title").textContent=="Add Course"){
+        await fetch(`${API}/courses`,{
+          method:"POST",
+          headers:{ "Content-Type":"application/json" },
+          body: JSON.stringify({ title:name, code })
+        });
+      } else if(document.getElementById("modal-title").textContent=="Add Student"){
+        await fetch(`${API}/students`,{
+          method:"POST",
+          headers:{ "Content-Type":"application/json" },
+          body: JSON.stringify({ name,email })
+        });
+      }
+      closeModal();
+      await fetchCourses();
+      await fetchStudents();
+    } catch(err){ console.error(err); alert(err.message); }
+  });
+
+  async function deleteCourse(id){
+    if(confirm("Delete this course?")){
+      await fetch(`${API}/courses/${id}`,{ method:"DELETE" });
+      await fetchCourses();
+      await fetchStudents();
+    }
+  }
+
+  async function deleteStudent(id){
+    if(confirm("Delete this student?")){
+      await fetch(`${API}/students/${id}`,{ method:"DELETE" });
+      await fetchStudents();
+    }
+  }
+
+  async function registerCoursePrompt(studentId){
+    const courses = await fetchCourses();
+    const select = document.getElementById("course-select");
+    select.innerHTML = "";
+    courses.forEach(c=>select.innerHTML+=`<option value="${c._id}">${c.title} (${c.code})</option>`);
+    document.getElementById("modal-title").textContent="Register Course";
+    document.getElementById("name").style.display="none";
+    document.getElementById("code").style.display="none";
+    document.getElementById("email").style.display="none";
+    select.style.display="block";
+    document.getElementById("modal").style.display="flex";
+
+    const handler = async (e)=>{
+      e.preventDefault();
+      const courseId = select.value;
+      await fetch(`${API}/students/${studentId}/register`,{
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ courseId })
+      });
+      closeModal();
+      document.getElementById("modal-form").removeEventListener("submit",handler);
+      await fetchStudents();
+    };
+    document.getElementById("modal-form").addEventListener("submit",handler);
+  }
+
+  fetchCourses();
+  fetchStudents();
+</script>
+</body>
+</html>
